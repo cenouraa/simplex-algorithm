@@ -74,7 +74,10 @@ function montandoMatrizA(data: string) {
         matrizA.push(new Array(tamColuna).fill(0)) // preenche a matriz com 0
     }
 
-    
+    for(const linha of linhas) {
+        let valores: number[] = new Array(tamColuna).fill(0) // cria um array com o tamanho da linha e preenche com 0
+        
+    }
 
 
     console.table(matrizA) // imprime a matriz A
