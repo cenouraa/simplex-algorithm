@@ -47,17 +47,16 @@ function quantidadeEquacoes(data: string): number {
     return numEquacoes
 }
 
-/*tem q revisar*/
+/*da pra usar isso na montagem do vetor b*/
 function quantidadeVariaveis(data: string): number {
     let linha = data.split('\n')[0].trim() //pega a primeira linha do arquivo
-    const index = linha.indexOf('=') //pega o index do sinal de igual
+    const index = linha.indexOf('=') //guarda a posição do = na linha (vai ser -1 se n encontrar)
 
     if (index !== -1) {
-        linha = linha.slice(index + 1).trim(); // Remove tudo antes e incluindo o '='
+        linha = linha.slice(index + 1).trim(); // remove tudo antes do = e o = também
     }
 
-    // Conta quantos 'x' existem na linha
-    const quantidadeX = linha.split('').filter(char => char === 'x').length;
+    const quantidadeX = linha.split('').filter(char => char === 'x').length; //retorna a quantidade de x na linha
 
     return quantidadeX;
 }
@@ -74,11 +73,24 @@ function montandoMatrizA(data: string) {
         matrizA.push(new Array(tamColuna).fill(0)) // preenche a matriz com 0
     }
 
-    for(const linha of linhas) {
-        let valores: number[] = new Array(tamColuna).fill(0) // cria um array com o tamanho da linha e preenche com 0
-        
-    }
+    linhas.forEach((linha, i) => {
+        if (linha.includes('>=') || linha.includes('<=')) {
+            const partesLinha = linha.split(/>=|<=|=/); // divide a linha em partes usando >=, <= ou =
+            const ladoEsquerdo = partesLinha[0].trim(); // pega a parte esquerda da equação
+            const termos = ladoEsquerdo.split(/(?=[+-])/); // Divide por "+" ou "-" 
 
+            termos.forEach((termo) => {
+                termo = termo.trim(); //remove os espaços em branco
+                if (termo.includes('x')) {
+                    //converte o termo em um número e pega o índice da variável
+                    const coeficiente = parseFloat(termo.split('x')[0]) || (termo.startsWith('-') ? -1 : 1);
+                    //converte o número da variável em um índice da matriz
+                    const variavel = parseInt(termo.split('x')[1], 10) - 1; 
+                    matrizA[i][variavel] = coeficiente; 
+                }
+            });
+        }
+    });
 
     console.table(matrizA) // imprime a matriz A
 
