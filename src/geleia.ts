@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs, { ftruncate } from 'fs'
 
 function lerArquivo(callback: (data: string) => void): void {
     fs.readFile('instance.txt', 'utf8', (err, data) => {
@@ -36,7 +36,7 @@ function qtdadeRestricoes(data: string): number {
     return numEquacoes
 }
 
-function calculafuncObjetivo(data: string): number[] {
+function calculafuncObjetivo(data: string, numRestricoes: number): number[] {
     const funcObjetivo: number[] = []
     
     const primeiraLinha: string = data.split('\n')[0].trim() //pega só a primeira linha da entrada
@@ -65,7 +65,10 @@ function calculafuncObjetivo(data: string): number[] {
         funcObjetivo.push(valor)
     })
     
-    return funcObjetivo.filter(coef => !isNaN(coef))
+    const coeficientesFilter = funcObjetivo.filter(coef => !isNaN(coef))
+    const zerosFolga = Array(numRestricoes).fill(0)
+
+    return [...coeficientesFilter, ...zerosFolga]
 }
 
 function verificaMaxMin(data: string): string{
@@ -209,7 +212,7 @@ function processaDadosDeEntrada(data: string) {
     console.table(matriz)
     console.log("Vetor B:", vetorB)
 
-    const resultado = simplex(data, numVariaveis, numRestricoes, matriz, vetorB, sinaisRestricao)
+    const resultado = simplex(data, numVariaveis, numRestricoes, matriz, vetorB, sinaisRestricao, funcObjetivo)
     return resultado
 }
 
@@ -222,7 +225,7 @@ function obterDados(data: string){
 }
 
 function prepararDados(data: string, numVariaveis: number, numRestricoes: number, tipoFuncao: string) {
-    let funcObjetivo = calculafuncObjetivo(data)
+    let funcObjetivo = calculafuncObjetivo(data, numRestricoes)
     let sinaisRestricao = extraiSinaisRestricao(data)
     let { matriz, vetorB } = montaEstruturas(data, numVariaveis, numRestricoes, sinaisRestricao)
 
@@ -253,70 +256,244 @@ function precisaFaseI(sinaisRestricao: string[]): boolean {
     return false
 }
 
-function faseII(data: string, numVariaveis: number, numRestricoes: number, matriz: number[][], vetorB: number[], sinaisRestricao: string[]){
-    //declarando muita variavel ai que vamo ter que ta usando
-    const numVarBasicas: number = numRestricoes
-    const colunasMatriz: number = matriz[0].length
-    const numVarNaoBasicas: number = colunasMatriz - numRestricoes
+function existeBaseValida(matriz: number[][], linhas: number, colunas: number): number[] {
+    const baseInicial: number[] = []
 
-    const xB: number = 0
-    const lambda: number = 0
-    const custosRelativos: number[] = []
-    const vetorY: number[] = []
-    const cnk: number = 0
-    const epsilon: number = 0
+    for(let j=0; j<colunas; j++){
+        const coluna: number[] = []
+        for(let i=0; i<linhas; i++){
+            coluna.push(matriz[i][j])
+        }
 
-    const basicas: number[] = []
-    const nBasicas: number[] = []
-    
-    const indicesColunas = [...Array(colunasMatriz).keys()]
+        const count1 = coluna.filter(x => x === 1).length
+        const count2 = coluna.filter(x => x === 0).length
 
+        if(count1 === 1 && count2 === linhas - 1){
+            baseInicial.push(j)
+        }
+    }
+
+    return baseInicial.slice(0, linhas)
+}
+
+function montaMatrizBasicaENBasica(numVarBasicas: number, numColunas: number, matriz: number[][]){
+    const indicesColunas = [...Array(numColunas).keys()]
     for(let i=indicesColunas.length -1; i > 0; i--){
         const j = Math.floor(Math.random() * (i+1));
         [indicesColunas[i], indicesColunas[j]] = [indicesColunas[j], indicesColunas[i]]
     }
-
+    
     const colunasBasicas = indicesColunas.slice(0, numVarBasicas)
     const colunasNBasicas = indicesColunas.slice(numVarBasicas)
 
-    console.log("Índices das colunas aleatorizadas:", indicesColunas);
-    console.log("Colunas básicas (aleatórias):", colunasBasicas);
-    console.log("Colunas não básicas (aleatórias):", colunasNBasicas);
-
+    console.log("Índices das colunas aleatorizadas:", indicesColunas)
+    console.log("Colunas básicas (aleatórias):", colunasBasicas)
+    console.log("Colunas não básicas (aleatórias):", colunasNBasicas)
+    
     const matrizBasica = matriz.map(linha => colunasBasicas.map(indice => linha[indice]))
     const matrizNBasica = matriz.map(linha => colunasNBasicas.map(indice => linha[indice]))
 
-    console.log("Matriz básica (aleatória):", matrizBasica);
-    console.log("Matriz não básica (aleatória):", matrizNBasica);
-
-    // const baseValida = isBaseValida(matrizBasica, vetorB)
-    // if(!baseValida){
-    //     throw new Error('A base não é viável.')
-    // }
-
-    //caso precise da fase 1
-    if(precisaFaseI(sinaisRestricao)){
-        console.log('entrou fase 1')
-    }
-    
-    if(!precisaFaseI(sinaisRestricao)){
-        //definindo colunas basicas e nao básicas
-        for(let i=0; i<numVarNaoBasicas; i++){
-            nBasicas[i] = i
-        }
-        let indice: number = 0
-        for(let i=numVariaveis; i<colunasMatriz; i++){
-            basicas[indice] = i
-            indice++
-        }
-
-
-    }
+    return { colunasBasicas, colunasNBasicas, matrizBasica, matrizNBasica }
 }
 
-function simplex(data: string, numVariaveis: number, numRestricoes: number, matriz: number[][], vetorB: number[], sinaisRestricao: string[]): void{
+function calculaDeterminante(matriz : number[][]) : number{
+    const dimensao = matriz.length //linhas
+    const colunas = matriz[0].length
+
+    if(dimensao !== colunas) throw new Error("A matriz não é quadrada")
+    if(dimensao == 1) return matriz[0][0]
+
+    let determinante = 0
+    const linha = 0
+    for(let coluna=0; coluna<dimensao; coluna++) {
+        determinante += matriz[linha][coluna] * cofator(linha, coluna, matriz);
+    }
+
+    return determinante
+}
+
+function subMatriz(matriz: number[][], linha: number, coluna: number): number[][] {
+    const subMatriz: number[][] = [];
+
+    for (let i = 0; i < matriz.length; i++) {
+        if (i === linha) continue; // Ignora a linha especificada
+
+        const novaLinha: number[] = [];
+        for (let j = 0; j < matriz[i].length; j++) {
+            if (j === coluna) continue; // Ignora a coluna especificada
+            novaLinha.push(matriz[i][j]); // Adiciona o elemento à nova linha
+        }
+        subMatriz.push(novaLinha); // Adiciona a nova linha à submatriz
+    }
+
+    return subMatriz;
+}
+
+function cofator(i: number, j: number, matriz: number[][]): number {
+  const sub = subMatriz(matriz, i, j);
+  return ((-1) ** (i + j)) * calculaDeterminante(sub);
+}
+
+function calculaMatrizInversa(matriz: number[][]): number[][] {
+    if(matriz[0].length !== matriz.length) {
+        throw new Error('A matriz deve ser quadrada')
+    }
+
+    const matrizCof: number[][] = []
+    for (let i = 0; i < matriz.length; i++) {
+        const linha: number[] = [];
+        for (let j = 0; j < matriz.length; j++) {
+            linha.push(cofator(i, j, matriz));
+        }
+        matrizCof.push(linha)
+    }
+
+    const matrizAdj: number[][] = [];
+    for (let i = 0; i < matriz.length; i++) {
+        const linha: number[] = [];
+        for (let j = 0; j < matriz.length; j++) {
+            linha.push(matrizCof[j][i]); 
+        }
+        matrizAdj.push(linha)
+    }
+
+    const matrizInversa: number[][] = []
+    for(let i=0; i < matriz.length; i++) {
+        const linha: number[] = []
+        for(let j=0; j < matriz.length; j++) {
+            // var Fraction = require('fractional').Fraction
+            // const fracao = new Fraction(matrizAdj[i][j] / calculaDeterminante(matriz)).toString()
+            let valor : number = 0
+            valor = matrizAdj[i][j] / calculaDeterminante(matriz)
+            linha.push(valor)
+        }
+        matrizInversa.push(linha)
+    }
+
+    return matrizInversa
+}
+
+function multiplicaMatrizes(matrizA: number[][], matrizB: number[][]) : number[][] {
+    let matrizT : number[][] = []
+    let mult : number = 0
+
+    const linhasA = matrizA.length;
+    const colunasA = matrizA[0].length;
+    const linhasB = matrizB.length;
+    const colunasB = matrizB[0].length;
+
+    if (colunasA !== linhasB) {
+        throw new Error("Número de colunas de A deve ser igual ao número de linhas de B");
+    }
+    
+    for(var i=0; i<linhasA; i++) {
+        matrizT[i] = [];
+        for(var j=0; j<colunasB; j++) {
+            mult = 0
+            for (let k = 0; k < colunasA; k++) {
+                mult += matrizA[i][k] * matrizB[k][j];
+            }
+            matrizT[i][j] = mult
+        } 
+    }
+    return matrizT
+}
+
+function calculaMatrizTransposta(matrizBasica: number[][]): number[][]{
+    if(matrizBasica.length === 0) return []
+
+    const numColunas: number = matrizBasica[0].length
+
+    const basicaTransposta: number[][] = Array(numColunas).fill(0).map((_, colunaIndex) => matrizBasica.map((linha) => linha[colunaIndex]))
+    return basicaTransposta
+}
+
+function calculaXB(matrizBasica: number[][], vetorB: number[]): number[][]{
+    const inversaBasica: number[][] = calculaMatrizInversa(matrizBasica)
+    const matrizVetorB: number[][] = vetorB.map(i => [i])
+    const xB: number[][] = multiplicaMatrizes(inversaBasica, matrizVetorB)
+    return xB
+}
+
+function calculaCustoBasico(colunasBasica: number[], funcObjetivo: number[]){
+    const cB: number[] = colunasBasica.map(col => funcObjetivo[col])
+    return cB
+}
+
+function calculaLambdaT(matrizBasica: number[][], custoBasico: number[]){
+    const inversaBasica = calculaMatrizInversa(matrizBasica)
+    const matrizCustoBasico: number[][] = custoBasico.map(i => [i])
+    const custoBasicoT = calculaMatrizTransposta(matrizCustoBasico)
+    const lambdaT = multiplicaMatrizes(custoBasicoT, inversaBasica)
+    return lambdaT[0]
+}
+
+function faseII(data: string, numVariaveis: number, numRestricoes: number, matriz: number[][], vetorB: number[], sinaisRestricao: string[], funcObjetivo: number[]){
+     //caso precise da fase 1
+    if(precisaFaseI(sinaisRestricao)){
+        console.log('entrou fase 1')
+        //faseI()
+    }
+    if(!precisaFaseI(sinaisRestricao)){
+        console.log('entrando na fase 2 direto... testando base viável')
+
+        const baseInicial: number[] = existeBaseValida(matriz, matriz.length, matriz[0].length)
+        if(baseInicial.length != matriz.length){
+            console.log('nao foi possível encontrar base viável. Executando fase 1...')
+            //faseI()
+        }
+
+        console.log('Base calculada pela verificação de base viável:', baseInicial)
+    }
+    //continua na fase 2 por aqui depois de calcular essa base viável que vai ser sobrescrita
+
+    //declarando muita variavel ai que vamo ter que ta usando
+    const numVarBasicas: number = numRestricoes
+    const numColunas: number = matriz[0].length
+    const numVarNaoBasicas: number = numColunas - numRestricoes
+
+    const { colunasBasicas, colunasNBasicas, matrizBasica, matrizNBasica } = montaMatrizBasicaENBasica(numVarBasicas, numColunas, matriz)
+
+    console.log("Matriz básica (aleatória):", matrizBasica)
+    console.log("Matriz não básica (aleatória):", matrizNBasica)
+
+    let iteracao: number = 0
+    let parar: boolean = true
+
+    do{
+        iteracao++
+        console.log('\n--- Iteração:', iteracao, '---')
+
+        //PASSO 1
+        const xB = calculaXB(matrizBasica, vetorB)
+        console.log('xB:', xB)
+
+        //PASSO 2
+        //PASSO 2.1
+        const basicaTransposta: number[][] = calculaMatrizTransposta(matrizBasica)
+        console.log('Basica Transposta', basicaTransposta)
+
+        //Gerar custoBasico
+        console.log('Função Objetivo:', funcObjetivo)
+        const custoBasico: number[] = calculaCustoBasico(colunasBasicas, funcObjetivo)
+        console.log('Custo Basico:', custoBasico)
+
+        const lambdaT = calculaLambdaT(matrizBasica, custoBasico)
+        console.log('LambdaT:', lambdaT);
+
+        //PASSO 2.2
+
+    }while(!parar)
+
+    const custosRelativos: number[] = []
+    const vetorY: number[] = []
+    const cnk: number = 0
+    const epsilon: number = 0
+}
+
+function simplex(data: string, numVariaveis: number, numRestricoes: number, matriz: number[][], vetorB: number[], sinaisRestricao: string[], funcObjetivo: number[]): void{
     console.log('trabaiando na tal da fase2')
-    faseII(data, numVariaveis, numRestricoes, matriz, vetorB, sinaisRestricao)
+    faseII(data, numVariaveis, numRestricoes, matriz, vetorB, sinaisRestricao, funcObjetivo)
     
 }
 
