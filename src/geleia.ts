@@ -547,15 +547,16 @@ function faseII(data: string, numVariaveis: number, numRestricoes: number, matri
     const numColunas: number = matriz[0].length
     const numVarNBasicas: number = numColunas - numRestricoes
 
-    let { colunasBasicas, colunasNBasicas, matrizBasica, matrizNBasica } = montaMatrizBasicaENBasica(numVarBasicas, numColunas, matriz)
+    let montaMatrizes
 
-    console.log("Matriz básica (aleatória):", matrizBasica)
-    console.log("Matriz não básica (aleatória):", matrizNBasica)
+    do{
+        montaMatrizes = montaMatrizBasicaENBasica(numVarBasicas, numColunas, matriz)
+    } while (calculaDeterminante(montaMatrizes.matrizBasica) === 0)
 
-    if(calculaDeterminante(matrizBasica) === 0) throw new Error('A matriz básica não é invertível!');
+    let {colunasBasicas, colunasNBasicas, matrizBasica, matrizNBasica} = montaMatrizes
 
     let iteracao: number = 0
-    let parar: boolean = true //tem que mudar isso aqui depois pra iniciar o loop
+    let parar: boolean = false //tem que mudar isso aqui depois pra iniciar o loop
 
     do{
         iteracao++
@@ -590,7 +591,32 @@ function faseII(data: string, numVariaveis: number, numRestricoes: number, matri
         if(custosRelativos[cnk] >= 0){
             parar = true
             console.log('Solução ótima foi encontrada!')
-            //tem que calcular a solução aqui
+
+            const xB = calculaXB(matrizBasica, vetorB)
+            const solucao: number[] = new Array(numColunas).fill(0)
+
+            for(let i=0; i<colunasBasicas.length; i++){
+                solucao[colunasBasicas[i]] = xB[i][0]
+            }
+
+            let z=0
+            for(let i=0; i < colunasBasicas.length; i++){
+                z += (funcObjetivo[colunasBasicas[i]] * solucao[colunasBasicas[i]]) * -1
+            }
+
+            console.log('Variáveis básicas (não nulas):');
+            colunasBasicas.forEach((col, idx) => {
+                console.log(`x${col + 1} = ${solucao[col]}`);
+            });
+
+            console.log('\nVariáveis não básicas (zero):');
+            colunasNBasicas.forEach(col => {
+                console.log(`x${col + 1} = 0`);
+            });
+
+            console.log(`\nValor ótimo da função objetivo (Z): ${z}`);
+            break;
+            return
         }
 
         //PASSO 4
@@ -621,8 +647,7 @@ function faseII(data: string, numVariaveis: number, numRestricoes: number, matri
         console.log('Nova matriz basica:', matrizBasica)
         console.log('Nova matriz não basica:', matrizNBasica)
 
-    }while(!parar)
-
+    }while(!parar && iteracao < 100)
 }
 
 function simplex(data: string, numVariaveis: number, numRestricoes: number, matriz: number[][], vetorB: number[], sinaisRestricao: string[], funcObjetivo: number[]): void{
