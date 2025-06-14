@@ -276,24 +276,34 @@ function existeBaseValida(matriz: number[][], linhas: number, colunas: number): 
     return baseInicial.slice(0, linhas)
 }
 
-function montaMatrizBasicaENBasica(numVarBasicas: number, numColunas: number, matriz: number[][]){
-    const indicesColunas = [...Array(numColunas).keys()]
-    for(let i=indicesColunas.length -1; i > 0; i--){
-        const j = Math.floor(Math.random() * (i+1));
-        [indicesColunas[i], indicesColunas[j]] = [indicesColunas[j], indicesColunas[i]]
-    }
+// function montaMatrizBasicaENBasica(numVarBasicas: number, numColunas: number, matriz: number[][]){
+//     const indicesColunas = [...Array(numColunas).keys()]
+//     for(let i=indicesColunas.length -1; i > 0; i--){
+//         const j = Math.floor(Math.random() * (i+1));
+//         [indicesColunas[i], indicesColunas[j]] = [indicesColunas[j], indicesColunas[i]]
+//     }
     
-    const colunasBasicas = indicesColunas.slice(0, numVarBasicas)
-    const colunasNBasicas = indicesColunas.slice(numVarBasicas)
+//     const colunasBasicas = indicesColunas.slice(0, numVarBasicas)
+//     const colunasNBasicas = indicesColunas.slice(numVarBasicas)
 
-    console.log("Índices das colunas aleatorizadas:", indicesColunas)
-    console.log("Colunas básicas (aleatórias):", colunasBasicas)
-    console.log("Colunas não básicas (aleatórias):", colunasNBasicas)
+//     console.log("Índices das colunas aleatorizadas:", indicesColunas)
+//     console.log("Colunas básicas (aleatórias):", colunasBasicas)
+//     console.log("Colunas não básicas (aleatórias):", colunasNBasicas)
     
-    const matrizBasica = matriz.map(linha => colunasBasicas.map(indice => linha[indice]))
-    const matrizNBasica = matriz.map(linha => colunasNBasicas.map(indice => linha[indice]))
+//     const matrizBasica = matriz.map(linha => colunasBasicas.map(indice => linha[indice]))
+//     const matrizNBasica = matriz.map(linha => colunasNBasicas.map(indice => linha[indice]))
 
-    return { colunasBasicas, colunasNBasicas, matrizBasica, matrizNBasica }
+//     return { colunasBasicas, colunasNBasicas, matrizBasica, matrizNBasica }
+// }
+
+function montaMatrizBasicaENBasica(
+    colunasBasicas: number[],
+    colunasNBasicas: number[],
+    matrizOriginal: number[][]
+): { matrizBasica: number[][], matrizNBasica: number[][] } {
+    const matrizBasica = colunasBasicas.map(col => matrizOriginal.map(linha => linha[col]));
+    const matrizNBasica = colunasNBasicas.map(col => matrizOriginal.map(linha => linha[col]));
+    return { matrizBasica, matrizNBasica };
 }
 
 function calculaDeterminante(matriz : number[][]) : number{
@@ -337,6 +347,10 @@ function cofator(i: number, j: number, matriz: number[][]): number {
 function calculaMatrizInversa(matriz: number[][]): number[][] {
     if(matriz[0].length !== matriz.length) {
         throw new Error('A matriz deve ser quadrada')
+    }
+
+    if(calculaDeterminante(matriz) === 0){
+        throw new Error('A matriz deve ter determinante diferente de zero!')
     }
 
     const matrizCof: number[][] = []
@@ -428,11 +442,73 @@ function calculaLambdaT(matrizBasica: number[][], custoBasico: number[]){
     return lambdaT[0]
 }
 
+function calculaCustosRelativos(colunasNBasicas: number[], lambdaT: number[], funcObjetivo: number[], matriz: number[][]){
+    return colunasNBasicas.map(j => {
+        const colunaNj = matriz.map(linha => linha[j])
+        const lambdaTAj = colunaNj.reduce((sum, val, i) => sum + lambdaT[i] * val, 0)
+        return funcObjetivo[j] - lambdaTAj
+    })
+}
+
+function minimoCustosRelativos(custosRelativos: number[]){
+    let min: number = custosRelativos[0]
+    let k:number = 0
+
+    for(let i=1; i < custosRelativos.length; i++){
+        if(custosRelativos[i] < min){
+            k = i
+            min = custosRelativos[i]
+        }
+    }
+
+    return k //retorna o índice que contém o menor custo
+}
+
+function calculaVetorY(matrizBasica: number[][], colunaAK: number[]): number[]{
+    const matrizInversa = calculaMatrizInversa(matrizBasica)
+    const matrizColunaAK: number[][] = colunaAK.map(i => [i])
+    const vetorY = multiplicaMatrizes(matrizInversa, matrizColunaAK)
+    return vetorY.map(linha => linha[0])
+}
+
+function condicaoDeParadaVetorY(vetorY: number[], tam: number): boolean{
+    let count = 0
+    for(let i=0; i<tam; i++){
+        if(vetorY[i] <= 0){
+            count++
+        }
+    }
+
+    return count == tam
+}
+
+function calculaEpsilon(vetorY: number[], xB: number[][]){
+    const vetorXB: number[] = xB.map(linha => linha[0])
+    let min = Infinity
+    let indiceMin = -1
+
+    for(let i=0; i<vetorY.length; i++){
+        if(vetorY[i] > 0){
+            const razao = vetorXB[i] / vetorY[i]
+            if(razao < min){
+                min = razao
+                indiceMin = i
+            }
+        }
+    }
+    if(indiceMin === -1) {
+        console.log('Todas as razões são inválidas! (calculaEpsilon)')
+    }
+    
+    return indiceMin
+}
+
 function faseII(data: string, numVariaveis: number, numRestricoes: number, matriz: number[][], vetorB: number[], sinaisRestricao: string[], funcObjetivo: number[]){
      //caso precise da fase 1
     if(precisaFaseI(sinaisRestricao)){
         console.log('entrou fase 1')
         //faseI()
+        return
     }
     if(!precisaFaseI(sinaisRestricao)){
         console.log('entrando na fase 2 direto... testando base viável')
@@ -450,15 +526,17 @@ function faseII(data: string, numVariaveis: number, numRestricoes: number, matri
     //declarando muita variavel ai que vamo ter que ta usando
     const numVarBasicas: number = numRestricoes
     const numColunas: number = matriz[0].length
-    const numVarNaoBasicas: number = numColunas - numRestricoes
+    const numVarNBasicas: number = numColunas - numRestricoes
 
     const { colunasBasicas, colunasNBasicas, matrizBasica, matrizNBasica } = montaMatrizBasicaENBasica(numVarBasicas, numColunas, matriz)
 
     console.log("Matriz básica (aleatória):", matrizBasica)
     console.log("Matriz não básica (aleatória):", matrizNBasica)
 
+    if(calculaDeterminante(matrizBasica) === 0) throw new Error('A matriz básica não é invertível!');
+
     let iteracao: number = 0
-    let parar: boolean = true
+    let parar: boolean = true //tem que mudar isso aqui depois pra iniciar o loop
 
     do{
         iteracao++
@@ -482,13 +560,52 @@ function faseII(data: string, numVariaveis: number, numRestricoes: number, matri
         console.log('LambdaT:', lambdaT);
 
         //PASSO 2.2
+        const custosRelativos = calculaCustosRelativos(colunasNBasicas, lambdaT, funcObjetivo, matriz)
+        console.log('Custo Relativo:', custosRelativos)
+
+        //PASSO 2.3
+        const cnk = minimoCustosRelativos(custosRelativos)
+        console.log('Cnk:', cnk)
+
+        //PASSO 3
+        if(custosRelativos[cnk] >= 0){
+            parar = true
+            console.log('Solução ótima foi encontrada!')
+            break
+        }
+
+        //PASSO 4
+        const colunaAK = matriz.map(linha => linha[colunasNBasicas[cnk]])
+        const vetorY = calculaVetorY(matrizBasica, colunaAK)
+        console.log('VetorY:', vetorY);
+
+        //PASSO 5
+        if(condicaoDeParadaVetorY(vetorY, numVarNBasicas)){
+            parar = true
+            console.log('Não tem solução ótima finita!')
+            return null
+        }
+
+        const epsilon = calculaEpsilon(vetorY, xB) //variavel que vai sair da base
+        console.log('Epsilon', epsilon);
+
+        //PASSO 6
+        const varSaiBase = colunasBasicas[epsilon]
+        colunasBasicas[epsilon] = colunasNBasicas[cnk]
+        colunasNBasicas[cnk] = varSaiBase
+
+        const { matrizBasica: novaMatrizBasica, matrizNBasica: novaMatrizNBasica } = montaMatrizBasicaENBasica(colunasBasicas, colunasNBasicas, matriz);
+
+        matrizBasica = novaMatrizBasica
+        matrizNBasica = novaMatrizNBasica
+
+        console.log('Nova base:', colunasBasicas);
+        console.log('Novas não básicas:', colunasNBasicas);
+        console.log('Nova matriz B:', matrizBasica);
+        console.log('Nova matriz N:', matrizNBasica);
+
 
     }while(!parar)
-
-    const custosRelativos: number[] = []
-    const vetorY: number[] = []
-    const cnk: number = 0
-    const epsilon: number = 0
 }
 
 function simplex(data: string, numVariaveis: number, numRestricoes: number, matriz: number[][], vetorB: number[], sinaisRestricao: string[], funcObjetivo: number[]): void{
