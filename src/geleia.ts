@@ -606,15 +606,15 @@ function faseII(data: string, numVariaveis: number, numRestricoes: number, matri
 
             console.log('Variáveis básicas (não nulas):');
             colunasBasicas.forEach((col, idx) => {
-                console.log(`x${col + 1} = ${solucao[col]}`);
+                console.log(`x${col + 1} = ${solucao[col]}`)
             });
 
-            console.log('\nVariáveis não básicas (zero):');
+            console.log('\nVariáveis não básicas (zero):')
             colunasNBasicas.forEach(col => {
                 console.log(`x${col + 1} = 0`);
             });
 
-            console.log(`\nValor ótimo da função objetivo (Z): ${z}`);
+            console.log(`\nValor ótimo da função objetivo (Z): ${z}`)
             break;
             return
         }
