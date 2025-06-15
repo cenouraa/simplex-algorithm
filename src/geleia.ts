@@ -414,7 +414,6 @@ function calculaMatrizTransposta(matrizBasica: number[][]): number[][]{
 
 function calculaXB(matrizBasica: number[][], vetorB: number[]): number[][]{
     const inversaBasica: number[][] = calculaMatrizInversa(matrizBasica)
-    console.log('Inversa', inversaBasica)
     const matrizVetorB: number[][] = vetorB.map(i => [i])
     const xB: number[][] = multiplicaMatrizes(inversaBasica, matrizVetorB);
     return xB
@@ -510,6 +509,17 @@ function remontaMatrizBasicaENBasica(colunasBasicas: number[], colunasNBasicas: 
     };
 }
 
+function fatorial(n: number): number {
+    if (n <= 1) return 1
+    return n * fatorial(n - 1)
+}
+
+function combinacao(n: number, k: number): number {
+    if (k > n) return 0
+    if (k === 0 || k === n) return 1
+    return Math.round(fatorial(n) / (fatorial(k) * fatorial(n - k)))
+}
+
 function faseII(data: string, numVariaveis: number, numRestricoes: number, matriz: number[][], vetorB: number[], sinaisRestricao: string[], funcObjetivo: number[], tipoFuncao: string){
      //caso precise da fase 1
     if(precisaFaseI(sinaisRestricao)){
@@ -536,7 +546,7 @@ function faseII(data: string, numVariaveis: number, numRestricoes: number, matri
     let montaMatrizes
     let baseViavel = false
     let tentativas = 0
-    const maxTentativas = 100
+    const maxTentativas = combinacao(numVariaveis + numRestricoes, numRestricoes)
 
     do{
         tentativas++
@@ -556,7 +566,7 @@ function faseII(data: string, numVariaveis: number, numRestricoes: number, matri
     } while (!baseViavel && tentativas < maxTentativas)
 
     if (!baseViavel) {
-        console.log('Não foi possível encontrar base viável aleatória. Usando variáveis de folga.');
+        console.log('Não foi possível encontrar base viável aleatória após,', maxTentativas, 'tentativas. Usando variáveis de folga.');
         // Jogar pra fase 1 acho
         return;
     }
