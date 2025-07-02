@@ -257,26 +257,6 @@ function precisaFaseI(sinaisRestricao: string[]): boolean {
     return false
 }
 
-function existeBaseValida(matriz: number[][], linhas: number, colunas: number): number[] { //procura a base identidade
-    const baseInicial: number[] = []
-
-    for(let j=0; j<colunas; j++){
-        const coluna: number[] = []
-        for(let i=0; i<linhas; i++){
-            coluna.push(matriz[i][j])
-        }
-
-        const count1 = coluna.filter(x => x === 1).length //conta quantos 1
-        const count2 = coluna.filter(x => x === 0).length //conta quantos 0
-
-        if(count1 === 1 && count2 === linhas - 1){ //forma a coluna basica
-            baseInicial.push(j)
-        }
-    }
-
-    return baseInicial.slice(0, linhas)
-}
-
 function montaMatrizBasicaENBasica(numVarBasicas: number, numColunas: number, matriz: number[][]){
     const indicesColunas = [...Array(numColunas).keys()] //array de 0 a colunas-1
     for(let i=indicesColunas.length -1; i > 0; i--){
@@ -609,15 +589,15 @@ function iteracaoSimplex(matriz: number[][], vetorB: number[], funcObjetivo: num
         if (custosRelativos[cnk] >= 0) { //se solução otima
             console.log('Condição ótima atingida.')
 
-            //verificacoes especificas da faseI
+            //verificacoes especificas da faseI (CASO A)
             if (modo === 'faseI') {
                 let z = 0
                 for (let i = 0; i < colunasBasicas.length; i++) {
                     z += funcObjetivo[colunasBasicas[i]] * xB[i][0]
                 }
                 console.log('Valor função objetivo artificial (Z):', z)
-                if (z !== 0) {
-                    console.log('Problema inviável (fase I).')
+                if (z !== 0) { //(CASO B)
+                    console.log('Problema inviável.')
                     return null //nao tem solução viável
                 }
 
@@ -667,30 +647,17 @@ function iteracaoSimplex(matriz: number[][], vetorB: number[], funcObjetivo: num
         colunasNBasicas[cnk] = varSaiBase
 
         //atualiza matrizes
-        const resultado = remontaMatrizBasicaENBasica(colunasBasicas, colunasNBasicas, matriz);
+        const resultado = remontaMatrizBasicaENBasica(colunasBasicas, colunasNBasicas, matriz)
 
-        matrizBasica = resultado.matrizBasica;
-        matrizNBasica = resultado.matrizNBasica;
+        matrizBasica = resultado.matrizBasica
+        matrizNBasica = resultado.matrizNBasica
     }
 
     console.log('Número máximo de iterações atingido.')
     return null
 }
 
-function executarFaseI(matriz: number[][], funcObjetivoArtificial: number[], vetorB: number[], base: number[], nBase: number[], tipoFuncao: string, colunasArtificiais: number[]): { base: number[], nBase: number[], xB: number[][] } | null {
-    return iteracaoSimplex(
-        matriz,
-        vetorB,
-        funcObjetivoArtificial,
-        base,
-        nBase,
-        tipoFuncao,
-        'faseI',
-        colunasArtificiais
-    )
-}
-
-function faseI(funcObjetivo: number[], numVariaveis: number, numRestricoes: number, matrizOriginal: number[][], sinaisRestricao: string[], vetorB: number[]){
+function faseI(funcObjetivo: number[], numVariaveis: number, numRestricoes: number, matrizOriginal: number[][], sinaisRestricao: string[], vetorB: number[], tipoFuncao: string){
     const { matriz, colunasArtificiais } = criarMatrizArtificial(matrizOriginal, sinaisRestricao, numVariaveis)
 
     const funcObjetivoArtificial = new Array(matriz[0].length).fill(0)
@@ -723,14 +690,14 @@ function faseI(funcObjetivo: number[], numVariaveis: number, numRestricoes: numb
     console.log('Base inicial:', base)
     console.log('Não base inicial:', nBase)
 
-    const resultadoFaseI = executarFaseI(matriz, funcObjetivoArtificial, vetorB, base, nBase, 'max', colunasArtificiais)
+    const resultadoFaseI = iteracaoSimplex(matriz, vetorB, funcObjetivoArtificial, base, nBase, tipoFuncao, 'faseI', colunasArtificiais)
     return resultadoFaseI
 
 }
 
 function faseII(data: string, numVariaveis: number, numRestricoes: number, matriz: number[][], vetorB: number[], sinaisRestricao: string[], funcObjetivo: number[], tipoFuncao: string){
     if(precisaFaseI(sinaisRestricao)){ //caso precise da fase 1
-        let baseNova = faseI(funcObjetivo, numVariaveis, numRestricoes, matriz, sinaisRestricao, vetorB)
+        let baseNova = faseI(funcObjetivo, numVariaveis, numRestricoes, matriz, sinaisRestricao, vetorB, tipoFuncao)
 
         if (!baseNova) {
             console.log('Problema inviável. Encerrando execução.')
